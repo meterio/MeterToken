@@ -1,0 +1,112 @@
+
+Compile 
+============
+if smart contract is running on meter:
+solc-static-linux-0.6.10 --optimize-runs 200 --overwrite --bin --abi --evm-version constantinople -o ./compiled WMTR.sol WMTRG.sol MeterERC20Proxy.sol
+
+on ethereum:
+solc-static-linux-0.6.10 --optimize-runs 200 --overwrite --bin --abi -o ./compiled WMTR.sol WMTRG.sol MeterERC20Proxy.sol
+
+
+
+Steps on meter
+=======================
+1) connect to meter network. I am using local private network
+const meterify = require("meterify").meterify;
+const Web3 = require("web3");
+const web3 = meterify(new Web3(), "http://13.251.60.106:8669");
+
+2) prepare 2 accounts:
+0x0205c2D862cA051010698b69b54278cbAf945C0b 
+0x8A88c59bF15451F9Deb1d62f7734FeCe2002668E 
+
+web3.eth.accounts.wallet.add('private key')
+web3.eth.accounts.wallet.add('private key')
+web3.eth.accounts.wallet;
+
+3) for both:  Meter.abi/Meter.bin   MeterGov.abi/MeterGov.bin
+let token_abi = fs.readFileSync('./ERC20-Contract/compiled/MeterERC20.abi').toString();
+let tokenAbi = JSON.parse(token_abi);
+
+let token_bytecode = fs.readFileSync('./ERC20-Contract/compiled/MeterERC20.bin').toString();
+let tokenBytecode = "0x" + token_bytecode;
+
+contractInstance = new web3.eth.Contract(tokenAbi);
+contractInstance.options.data = tokenBytecode;
+
+//deploy
+contractInstance.deploy({arguments: []}).send({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then((newContractInstance) => {console.log(newContractInstance.options.address)})
+
+4) Get the MeterERC20 contract address here, for example '0x2d4d05BF2E5C212f24e78595c88B4EC985A54c39'
+
+
+-----
+5) load MeterProxy
+let proxy_abi = fs.readFileSync('./ERC20-Contract/compiled/MeterProxy.abi').toString();
+
+let proxyAbi = JSON.parse(proxy_abi);
+
+let proxy_bytecode = fs.readFileSync('./ERC20-Contract/compiled/MeterProxy.bin').toString();
+let proxyBytecode = "0x" + proxy_bytecode;
+
+proxyInstance = new web3.eth.Contract(proxyAbi);
+proxyInstance.options.data = proxyBytecode;
+
+6) deploy MeterProxy, use MeterERC20 contract address as implementation. Here it is '0x2d4d05BF2E5C212f24e78595c88B4EC985A54c39'
+proxyInstance.deploy({arguments: ['0x2d4d05BF2E5C212f24e78595c88B4EC985A54c39']}).send({from: '0x8A88c59bF15451F9Deb1d62f7734FeCe2002668E', gas: 4700000 }).then((newContractInstance) => {console.log(newContractInstance.options.address)})
+
+7) then get the MeterProxy contract address, here it is '0x716641D3650083C2B0b7784Ee11C9432998731c2'.
+
+
+*******Import!!!!*****
+8) set the contractInstance address as proxy adress, it is '0x716641D3650083C2B0b7784Ee11C9432998731c2'
+contractInstance.options.address = '0x716641D3650083C2B0b7784Ee11C9432998731c2'
+
+
+9) initialize the wMTR token, initialize amount 10000, owner 0x0205c2D862cA051010698b69b54278cbAf945C0b'
+contractInstance.methods.initialize('10000000000000000000000', '0x0205c2D862cA051010698b69b54278cbAf945C0b').send({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+
+
+Now, start to test contractInstance by using proxy address!!! 
+
+9) listen all events
+contractInstance.events.allEvents({ }, (error, result) => { if(error){ console.log(error) } else { console.log(result) } })
+
+methods call
+-----
+1) get totalSupply
+contractInstance.methods.totalSupply().call({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+///or
+contractInstance.methods.totalSupply().send({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+
+2) get account balance
+contractInstance.methods.balanceOf('0x0205c2D862cA051010698b69b54278cbAf945C0b').call({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+///or
+contractInstance.methods.balanceOf('0x0205c2D862cA051010698b69b54278cbAf945C0b').send({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+
+3) do token transfer 9
+contractInstance.methods.transfer('0x8A88c59bF15451F9Deb1d62f7734FeCe2002668E', '9000000000000000000').send({from: '0x0205c2D862cA051010698b69b54278cbAf945C0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+
+4) mint/burn (mint contract owner only, fails with other accounts, burn is public method)
+contractInstance.methods.mint('1000000000000000000').send({from: '0x0205c2d862ca051010698b69b54278cbaf945c0b', gas: 4700000 }).then(function(data){console.log(data)}).catch(function(err){console.log(err)})
+
+
+
+
+
+Steps on ethereum Ropsten
+===================================================
+===================================================
+1) set the provider to ropsten, provider is quiknode here.
+var Web3 = require('web3');
+var web3 = new Web3(new Web3.providers.HttpProvider("https://little-dark-morning.ropsten.quiknode.pro/bbfcf024cc66622545a0396980147bdbbd44bd93/"));
+
+same steps as meter with 2. 3. 4.
+
+ropston address:
+=======================
+0x4E23C8F8B6b6Dd236bac65b3Ac5BeD80832722BB MeterECR20
+0x46f1F470837eB1833c87202d8E565be29209c0CD Meter Proxy
+
+0x4f6D94accF73713968f6D1B3d191A05762BfD2c1 MeterGovERC20
+0x8912eCdF7cd748f61bB0046bDfeaE6507C79Bf5A MeterGovProxy
